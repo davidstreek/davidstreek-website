@@ -32,3 +32,7 @@
 /* Direct contact details: one mobile (WhatsApp) and one email. */
 .contact-details{display:flex;flex-direction:column;align-items:flex-start;gap:15px;min-width:0}
 .contact-details a{font-size:clamp(15px,1.5vw,19px);overflow-wrap:anywhere;white-space:normal}
+
+.contact-details p{margin:0}
+.contact-details p+p{margin-top:15px}
+@media(max-width:680px){.contact-details{margin-top:32px}.contact-details a{display:inline-block;max-width:100%}}
