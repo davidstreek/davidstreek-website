@@ -28,3 +28,7 @@
 .category-intro{display:block;padding:75px 0 55px}
 .category-intro p{margin:32px 0 0}
 }
+
+/* Direct contact details: one mobile (WhatsApp) and one email. */
+.contact-details{display:flex;flex-direction:column;align-items:flex-start;gap:15px;min-width:0}
+.contact-details a{font-size:clamp(15px,1.5vw,19px);overflow-wrap:anywhere;white-space:normal}
