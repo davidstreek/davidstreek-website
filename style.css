@@ -62,3 +62,8 @@
 /* Compact typography for project descriptions without a published gallery. */
 .project-copy.no-gallery{padding-top:26px}
 @media(max-width:680px){.project-copy.no-gallery{padding-top:16px}}
+
+/* New project photographs display without cropping or inventing detail. */
+.gallery-uncropped .frame{aspect-ratio:auto!important;height:auto;overflow:hidden}
+.gallery-uncropped img{width:100%;height:auto;object-fit:contain;transition:none}
+.gallery-single .frame{grid-column:1 / -1}
