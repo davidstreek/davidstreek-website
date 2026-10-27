@@ -67,3 +67,8 @@
 .gallery-uncropped .frame{aspect-ratio:auto!important;height:auto;overflow:hidden}
 .gallery-uncropped img{width:100%;height:auto;object-fit:contain;transition:none}
 .gallery-single .frame{grid-column:1 / -1}
+
+/* Small, genuine portrait alongside the personal About text. */
+.about-portrait{margin:27px 0 0;max-width:270px}
+.about-portrait img{width:100%;height:auto;display:block}
+@media(max-width:680px){.about-portrait{max-width:230px;margin:23px 0 0}.about .copy{margin-top:27px}}
