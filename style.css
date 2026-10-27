@@ -58,3 +58,7 @@
 .editorial-projects .project-name small{display:block;margin:7px 0 0 30px;text-align:left}
 .editorial-projects .project-teaser{margin-left:30px}
 }
+
+/* Compact typography for project descriptions without a published gallery. */
+.project-copy.no-gallery{padding-top:26px}
+@media(max-width:680px){.project-copy.no-gallery{padding-top:16px}}
