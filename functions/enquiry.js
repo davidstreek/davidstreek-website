@@ -36,7 +36,13 @@ export async function onRequestPost({ request, env }) {
   }
 
   const { RESEND_API_KEY, ENQUIRY_FROM, ENQUIRY_TO } = env;
-  if (!RESEND_API_KEY || !ENQUIRY_FROM || !ENQUIRY_TO) return respond(503);
+  const missingSettings = Object.entries({ RESEND_API_KEY, ENQUIRY_FROM, ENQUIRY_TO })
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+  if (missingSettings.length) {
+    console.warn('Enquiry mail settings missing:', missingSettings.join(', '));
+    return respond(503);
+  }
 
   try {
     const delivery = await fetch('https://api.resend.com/emails', {
