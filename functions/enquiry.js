@@ -41,7 +41,11 @@ export async function onRequestPost({ request, env }) {
     .map(([name]) => name);
   if (missingSettings.length) {
     console.warn('Enquiry mail settings missing:', missingSettings.join(', '));
-    return respond(503);
+    const response = respond(503);
+    if (request.headers.get('X-Enquiry-Diagnostic') === 'missing-settings') {
+      response.headers.set('X-Enquiry-Missing-Settings', missingSettings.join(', '));
+    }
+    return response;
   }
 
   try {
