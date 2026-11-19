@@ -1,8 +1,8 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Portfolio report | David Streek</title><style>:root{color-scheme:light;color:#252923;background:#f7f6f2;font:16px/1.5 Inter,Arial,sans-serif}main{max-width:1460px;margin:auto;padding:clamp(22px,4vw,64px)}[hidden]{display:none!important}</style><link rel="stylesheet" href="/insights/report.css" media="print" onload="this.media='all'"></head>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title>Portfolio report | David Streek</title><style>:root{color-scheme:light;color:#252923;background:#f7f6f2;font:16px/1.5 Inter,Arial,sans-serif}main{max-width:1460px;margin:auto;padding:clamp(22px,4vw,64px)}[hidden]{display:none!important}</style><link rel="stylesheet" href="/insights/report.css" media="print" onload="this.media='all'"></head>
 <body><main><header><a href="/">David Streek</a><p>Private report</p></header>
 <h1>Portfolio attention</h1><p id="device"></p><p id="status" role="status">Connecting to the report…</p>
 <p id="fallback" hidden><a href="/report">Open the simple sign-in page</a></p><noscript><p><a href="/report">Open the simple sign-in page</a></p></noscript>
-<button id="login" hidden>Sign in with an email code</button><button id="activate" hidden>Start measuring visits</button>
+<button id="activate" hidden>Start measuring visits</button>
 <div id="report" hidden><form id="period"><label>From <input type="date" id="from" required></label><label>To <input type="date" id="to" required></label><button>Show period</button></form>
 <section><h2>Overview</h2><div id="summary" class="summary"></div><div id="trends" class="trends"></div></section>
 <section><h2>Enquiries and sources</h2><div id="contact" class="trends"></div></section>
@@ -15,4 +15,4 @@
   };
   setTimeout(function () { if (status.textContent === 'Connecting to the report…') window.reportLoadIssue(); }, 8000);
 })();
-</script><script type="module">import('/insights/report.js?v=email-code').catch(window.reportLoadIssue);</script></body></html>
+</script><script type="module">import('/insights/report.js?v=password-login').catch(window.reportLoadIssue);</script></body></html>

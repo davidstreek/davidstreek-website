@@ -1,71 +1,82 @@
-// A plain HTML entrance for mobile browsers, including browsers with scripts disabled.
-import { onRequest as reportApi } from './api/report.js';
-import { sameOrigin } from '../lib/statistics.js';
+import {database} from '../lib/statistics.js';
+import {checkPassword, choosePassword, newSession, newToken, owner, savedPassword, sessionToken, tokenCookie} from '../lib/report-auth.js';
 
-const preferences = 'ds_ignore=1; Path=/; Secure; SameSite=Lax; Max-Age=34560000';
+const formCookie = '__Host-ds_form';
+const excludeCookie = 'ds_ignore=1; Path=/; Secure; SameSite=Lax; Max-Age=34560000';
 const baseHeaders = {
-  'Cache-Control': 'private, no-store',
-  'Referrer-Policy': 'no-referrer',
-  'X-Robots-Tag': 'noindex, nofollow',
-  'Set-Cookie': preferences
+  'Cache-Control':'private, no-store', 'Referrer-Policy':'same-origin', 'X-Robots-Tag':'noindex, nofollow',
+  'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 };
-function page(message, controls, status = 200) {
-  const escaped = message.replace(/[&<>"']/g, c => ({
-    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-  })[c]);
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Private report | David Streek</title>
-<style>:root{color-scheme:light;font:16px/1.5 Inter,Arial,sans-serif;background:#f7f6f2;color:#252923}main{max-width:38rem;margin:auto;padding:clamp(18px,5vw,56px)}h1{font-size:clamp(36px,7vw,54px);line-height:1.08;letter-spacing:-.05em}a{color:inherit}input{font:inherit;padding:.6em;width:9em;letter-spacing:.12em;margin:.4em 0}label{display:block}button{font:inherit;background:#252923;color:white;padding:.75em 1.1em;border:0;border-radius:4px;cursor:pointer}</style>
-</head><body><main><a href="/">David Streek</a><h1>Private report</h1>
-<p role="status">${escaped}</p>${controls}</main></body></html>`;
-  return new Response(html, { status, headers:{...baseHeaders,'Content-Type':'text/html; charset=utf-8'} });
+function escapeHtml(text) {
+  return text.replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[character]);
 }
-const emailForm = '<form method="post" action="/report"><button name="action" value="email">Email my sign-in code</button></form>';
-const codeForm = '<form method="post" action="/report"><label for="code">Sign-in code</label><input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" maxlength="8" required> <button name="action" value="verify">Sign in</button></form>';
-const dashboard = '<p><a href="/studio-report">Open the dashboard</a></p>';
-export async function onRequest(context) {
-  const { request } = context;
-  const url = new URL(request.url);
-  const excluded = /(?:^|;\s*)ds_ignore=1(?:;|$)/.test(request.headers.get('Cookie') || '');
-  if (request.method === 'GET' || request.method === 'HEAD') {
-    if (!excluded && !url.searchParams.has('check')) {
-      return new Response(null,{status:303,headers:{...baseHeaders,Location:'/report?check=1'}});
-    }
-    if (!excluded) return page('This browser could not save your exclusion. Allow cookies for davidstreek.com in this browser, then check again.', '<p><a href="/report">Check exclusion again</a></p>');
-    return page('This browser is excluded from portfolio statistics.', emailForm + codeForm + dashboard);
-  }
-  if (request.method !== 'POST') return page('Open the report to continue.',dashboard,405);
-  if (!sameOrigin(request)) return page('Open the report to request a code.',dashboard,403);
-  if (!excluded) return page('Check that this browser is excluded before requesting your code.', '<a href="/report">Check exclusion</a>',409);
-  if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/x-www-form-urlencoded')
-    return page('Open the sign-in page to continue.', emailForm, 415);
-  let data;
+function form(request, {setup=false, invitation='', message='', status=200} = {}) {
+  const nonce = tokenCookie(request, formCookie) || newToken();
+  const headers = new Headers({...baseHeaders, 'Content-Type':'text/html; charset=utf-8'});
+  headers.append('Set-Cookie', excludeCookie);
+  headers.append('Set-Cookie', formCookie + '=' + nonce + '; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=7200');
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Private report | David Streek</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#f7f6f2;color:#252923;font:16px/1.5 Inter,Arial,sans-serif}main{max-width:32rem;margin:auto;padding:clamp(24px,6vw,52px) 22px}a{color:inherit}h1{font-size:clamp(36px,8vw,52px);line-height:1.08;letter-spacing:-.05em;margin:1rem 0 1.5rem}label{display:block;margin-bottom:.3rem}input,button{font:inherit;border:1px solid #777a74;border-radius:4px;padding:.65rem .8rem}input[type=password]{width:100%;background:white}button{background:#252923;color:white;border-color:#252923;cursor:pointer;margin-top:1rem}p{margin:.6rem 0 1rem}input:focus-visible,button:focus-visible{outline:2px solid currentColor;outline-offset:3px}</style></head>
+<body><main><a href="/">David Streek</a><h1>Private report</h1>
+${message ? '<p role="status">'+escapeHtml(message)+'</p>' : ''}
+<form method="post" action="/report">
+<input type="hidden" name="form" value="${nonce}">
+${setup ? '<input type="hidden" id="invitation" name="invitation" value="'+escapeHtml(invitation)+'">' : ''}
+<label for="password">${setup ? 'Choose your password' : 'Password'}</label>
+<input id="password" type="password" name="password" autocomplete="${setup ? 'new-password' : 'current-password'}" maxlength="256" required${setup ? ' minlength="12" aria-describedby="hint"' : ''}>
+${setup ? '<p id="hint">Use at least 12 characters.</p>' : ''}
+<button type="submit">${setup ? 'Save and open report' : 'Sign in'}</button></form>
+${setup ? '<script src="/insights/report-setup.js" defer></script>' : ''}
+</main></body></html>`;
+  return new Response(request.method === 'HEAD' ? null : html, {status, headers});
+}
+function dashboard(session) {
+  const headers = new Headers({...baseHeaders, Location:'/studio-report'});
+  headers.append('Set-Cookie', excludeCookie);
+  if (session) headers.append('Set-Cookie', session);
+  return new Response(null, {status:303, headers});
+}
+async function readForm(request) {
+  if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/x-www-form-urlencoded') return null;
   const reader = request.body?.getReader();
-  let text='', size=0;
-  if (reader) {
-    const decoder = new TextDecoder();
-    for (;;) {
-      const {value,done}=await reader.read();
-      if (done) break;
-      size+=value.byteLength;
-      if (size>256) {await reader.cancel();return page('Please use the sign-in form.', emailForm,413);}
-      text+=decoder.decode(value,{stream:true});
+  if (!reader) return null;
+  const decoder = new TextDecoder();
+  let text = '', size = 0;
+  for (;;) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > 4096) { await reader.cancel(); return null; }
+    text += decoder.decode(value, {stream:true});
+  }
+  return new URLSearchParams(text + decoder.decode());
+}
+export async function onRequest({request, env}) {
+  const url = new URL(request.url);
+  try {
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      if (url.searchParams.get('setup') === '1' && !await savedPassword(await database(env)))
+        return form(request, {setup:true});
+      if (sessionToken(request) && await owner(await database(env), request)) return dashboard();
+      return form(request);
     }
-    text+=decoder.decode();
+    if (request.method !== 'POST') return form(request, {status:405});
+    const fields = await readForm(request);
+    const cookie = tokenCookie(request, formCookie);
+    const origin = request.headers.get('Origin');
+    const foreignOrigin = origin && origin !== 'null' && origin !== url.origin;
+    if (!fields || !cookie || fields.get('form') !== cookie || foreignOrigin || request.headers.get('Sec-Fetch-Site') === 'cross-site') {
+      return form(request, {message:'Please reopen the report page in this browser and try again.', status:403});
+    }
+    const db = await database(env);
+    const password = fields.get('password') || '';
+    const invitation = fields.get('invitation');
+    const result = invitation === null ? await checkPassword(db, request, password) : await choosePassword(db, invitation, password);
+    if (result.status === 200) return dashboard(await newSession(db));
+    const retrySetup = invitation !== null && result.status === 400;
+    return form(request, {...result, setup:retrySetup, invitation:retrySetup ? invitation : ''});
+  } catch {
+    return form(request, {status:503, message:'The report is temporarily unavailable. Please try again shortly.'});
   }
-  const fields = new URLSearchParams(text);
-  if (fields.get('action')==='verify' || fields.has('code')) data={action:'verify-code',code:fields.get('code')};
-  else data={action:'email'};
-  const result = await reportApi({...context,request:new Request(new URL('/api/report',url),{
-    method:'POST', headers:{Origin:url.origin,'Content-Type':'application/json',Cookie:request.headers.get('Cookie') || ''}, body:JSON.stringify(data)
-  })});
-  const cookie=result.headers.get('Set-Cookie');
-  if (data.action==='verify-code' && result.ok && cookie) {
-    return new Response(null,{status:303,headers:{...baseHeaders,Location:'/studio-report','Set-Cookie':cookie}});
-  }
-  const feedback=await result.json();
-  const out=page(feedback.message || 'Please try again.', codeForm + '<p></p>' + emailForm, result.status);
-  if(cookie) out.headers.append('Set-Cookie',cookie);
-  return out;
 }

@@ -86,8 +86,8 @@ function render({catalog,since,rows,from,to}){
 async function load(){
   const u=new URL('/api/report',location.origin);u.searchParams.set('from',id('from').value);u.searchParams.set('to',id('to').value);
   try{
-    const r=await fetch(u,{cache:'no-store'}),data=await r.json();id('login').hidden=r.status!==401;
-    if(!r.ok){id('report').hidden=true;id('activate').hidden=true;id('status').textContent=data.message||(r.status===401?'Sign in through your website enquiry inbox.':'Report unavailable.');return;}
+    const r=await fetch(u,{cache:'no-store'}),data=await r.json();if(r.status===401){location.replace('/report');return;}
+    if(!r.ok){id('report').hidden=true;id('activate').hidden=true;id('status').textContent=data.message||'Report unavailable.';return;}
     id('report').hidden=false;id('activate').hidden=!!data.since;id('activate').disabled=!excluded;
     id('status').textContent=data.since?'Measuring since '+shortDate(data.since)+' '+data.since.slice(0,4)+'.':'Collection is paused. Start it here after excluding the browsers you use to review your site.';
     // Read current portfolio order on every report, retaining past figures by stable image key.
@@ -108,14 +108,6 @@ async function load(){
   }catch{id('status').textContent='Could not load the report. Refresh to try again.';}
 }
 id('period').onsubmit=e=>{e.preventDefault();load();};
-id('login').onclick=()=>location.assign('/report');
 id('activate').onclick=async()=>{try{const r=await action('start');if(!r.ok)throw Error();await load();}catch{id('status').textContent='Collection could not start. Check this browser’s exclusion and try again.';}};
-id('logout').onclick=async()=>{await action('logout');location.replace(location.pathname);};
-const key=new URLSearchParams(location.hash.slice(1)).get('key');
-if(key){
-  history.replaceState(null,'',location.pathname);
-  id('status').textContent='To use this earlier sign-in link, continue in the browser where you want to view the report.';
-  id('login').textContent='Continue to my report';id('login').hidden=false;
-  id('login').onclick=async()=>{id('login').disabled=true;try{const r=await action('login',{key});if(!r.ok)throw Error();await load();}catch{location.assign('/report');}finally{id('login').disabled=false;id('login').textContent='Sign in with an email code';id('login').onclick=()=>location.assign('/report');}};
-}
-else await load();
+id('logout').onclick=async()=>{await action('logout');location.replace('/report');};
+await load();
