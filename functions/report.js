@@ -1,5 +1,5 @@
 import {database} from '../lib/statistics.js';
-import {checkPassword, choosePassword, newSession, newToken, owner, savedPassword, sessionToken, tokenCookie} from '../lib/report-auth.js';
+import {checkPin, installedPin, newSession, newToken, owner, sessionToken, tokenCookie} from '../lib/report-auth.js';
 
 const formCookie = '__Host-ds_form';
 const excludeCookie = 'ds_ignore=1; Path=/; Secure; SameSite=Lax; Max-Age=34560000';
@@ -10,7 +10,7 @@ const baseHeaders = {
 function escapeHtml(text) {
   return text.replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[character]);
 }
-function form(request, {setup=false, invitation='', message='', status=200} = {}) {
+function form(request, {message='', status=200} = {}) {
   const nonce = tokenCookie(request, formCookie) || newToken();
   const headers = new Headers({...baseHeaders, 'Content-Type':'text/html; charset=utf-8'});
   headers.append('Set-Cookie', excludeCookie);
@@ -22,12 +22,9 @@ function form(request, {setup=false, invitation='', message='', status=200} = {}
 ${message ? '<p role="status">'+escapeHtml(message)+'</p>' : ''}
 <form method="post" action="/report">
 <input type="hidden" name="form" value="${nonce}">
-${setup ? '<input type="hidden" id="invitation" name="invitation" value="'+escapeHtml(invitation)+'">' : ''}
-<label for="password">${setup ? 'Choose your password' : 'Password'}</label>
-<input id="password" type="password" name="password" autocomplete="${setup ? 'new-password' : 'current-password'}" maxlength="256" required${setup ? ' minlength="12" aria-describedby="hint"' : ''}>
-${setup ? '<p id="hint">Use at least 12 characters.</p>' : ''}
-<button type="submit">${setup ? 'Save and open report' : 'Sign in'}</button></form>
-${setup ? '<script src="/insights/report-setup.js" defer></script>' : ''}
+<label for="pin">PIN</label>
+<input id="pin" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" autocomplete="current-password" required>
+<button type="submit">Open report</button></form>
 </main></body></html>`;
   return new Response(request.method === 'HEAD' ? null : html, {status, headers});
 }
@@ -56,8 +53,7 @@ export async function onRequest({request, env}) {
   const url = new URL(request.url);
   try {
     if (request.method === 'GET' || request.method === 'HEAD') {
-      if (url.searchParams.get('setup') === '1' && !await savedPassword(await database(env)))
-        return form(request, {setup:true});
+      await installedPin(await database(env));
       if (sessionToken(request) && await owner(await database(env), request)) return dashboard();
       return form(request);
     }
@@ -70,12 +66,9 @@ export async function onRequest({request, env}) {
       return form(request, {message:'Please reopen the report page in this browser and try again.', status:403});
     }
     const db = await database(env);
-    const password = fields.get('password') || '';
-    const invitation = fields.get('invitation');
-    const result = invitation === null ? await checkPassword(db, request, password) : await choosePassword(db, invitation, password);
+    const result = await checkPin(db, request, fields.get('pin') ?? fields.get('password') ?? '');
     if (result.status === 200) return dashboard(await newSession(db));
-    const retrySetup = invitation !== null && result.status === 400;
-    return form(request, {...result, setup:retrySetup, invitation:retrySetup ? invitation : ''});
+    return form(request, result);
   } catch {
     return form(request, {status:503, message:'The report is temporarily unavailable. Please try again shortly.'});
   }
