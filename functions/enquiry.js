@@ -1,10 +1,12 @@
+import {delivered,discoveries} from '../lib/statistics.js';
+
 const limits = { name: 150, email: 254, phone: 60, project: 100, budget: 100, details: 5000 };
 
 function respond(status, ok = false) {
   return Response.json({ ok }, { status, headers: { 'Cache-Control': 'no-store' } });
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (request.headers.get('Origin') !== new URL(request.url).origin) return respond(403);
   if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/x-www-form-urlencoded') {
     return respond(415);
@@ -29,6 +31,7 @@ export async function onRequestPost({ request, env }) {
   if (form.get('website')) return respond(400);
 
   const fields = Object.fromEntries(Object.keys(limits).map(key => [key, (form.get(key) || '').trim()]));
+  const discovery = discoveries.includes(form.get('discovery')) ? form.get('discovery') : '';
   const { name, email, phone, project, budget, details } = fields;
   if (!name || !project || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
       Object.entries(fields).some(([key, value]) => value.length > limits[key])) {
@@ -64,11 +67,13 @@ export async function onRequestPost({ request, env }) {
           'Phone: ' + (phone || 'Not provided'),
           'Project: ' + project,
           'Approximate budget: ' + (budget || 'Not sure yet'),
+          ...(discovery ? ['Heard about us: ' + discovery] : []),
           '',
           details,
         ].join('\n'),
       }),
     });
+    if (delivery.ok) waitUntil(delivered(env,request,discovery).catch(() => {}));
     return delivery.ok ? respond(200, true) : respond(502);
   } catch {
     return respond(502);

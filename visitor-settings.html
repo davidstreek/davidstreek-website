@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Visitor privacy | David Streek</title><link rel="stylesheet" href="/insights/report.css">
+<main class="narrow"><a href="/">David Streek</a><h1>Visitor privacy</h1>
+<p>We count which projects people reach, which photographs they open and how long the images stay visible. These totals help us choose photographs and improve the portfolio. We also count enquiry actions, broad location, screen size and how visits reach the site.</p>
+<p>Cloudflare hosts the website and stores daily totals for us. The report contains no names, contact details, IP addresses, form text or individual browsing histories. Contact details you send through the enquiry form go to our enquiry inbox so we can reply.</p>
+<p>You can exclude this browser at any time. A preference cookie remembers your choice. We also honour your browser’s Do Not Track or Global Privacy Control setting.</p>
+<p id="state" role="status"></p><button id="toggle" hidden></button> <a class="inline" href="/">Return to the portfolio</a>
+<noscript>Browser interaction measurement requires JavaScript and is off in this browser.</noscript></main>
+<script type="module">
+import {setExcluded,isExcluded} from '/insights/preference.js';
+const state=document.querySelector('#state'),btn=document.querySelector('#toggle');
+if (location.search==='?exclude=1') { await setExcluded(true); history.replaceState(null,'',location.pathname); }
+const external=navigator.globalPrivacyControl===true || navigator.doNotTrack==='1';
+function show(){
+ const off=isExcluded();state.textContent=off?'This browser is excluded from the report.':external?'Your browser privacy signal excludes this browser.':'This browser allows aggregate measurement.';
+ btn.textContent=off?'Allow measurement on this browser':'Exclude this browser';btn.hidden=external;
+}
+btn.onclick=async()=>{const wanted=!isExcluded();await setExcluded(wanted);show();if(wanted&&!isExcluded())state.textContent='The preference could not be saved. Check that this browser allows site cookies.';};
+show();
+</script></html>
