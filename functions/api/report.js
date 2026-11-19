@@ -9,23 +9,71 @@ async function owner(db,req) {
   const value=(req.headers.get('Cookie') || '').match(/(?:^|;\s*)__Host-ds_report=([0-9a-f]{64})(?:;|$)/)?.[1];
   return value && await db.prepare('SELECT 1 AS yes FROM report_sessions WHERE digest=? AND expires>?').bind(await digest(value),Date.now()).first();
 }
-async function emailLink(env,db,request) {
-  if (!env.RESEND_API_KEY || !env.ENQUIRY_TO || !env.ENQUIRY_FROM) return response({message:'Report sign-in email is not configured.'},503);
-  const now=Date.now(),value=token(),hashed=await digest(value);
-  // Keep a valid outstanding email usable while limiting sends to the owner.
-  const claimed=await db.prepare("INSERT INTO report_settings(key,value) VALUES('link',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE CAST(substr(report_settings.value,1,13) AS INTEGER)<?")
-    .bind(now+'|'+hashed,now-300000).run();
-  if (claimed.meta.changes) {
-    try {
-      const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json'},signal:AbortSignal.timeout(8000),
-        body:JSON.stringify({from:env.ENQUIRY_FROM,to:[env.ENQUIRY_TO],subject:'Your portfolio report sign-in link',text:'Open this link in the browser you use to review your website. It is valid for 15 minutes.\n\nhttps://davidstreek.com/studio-report#key='+value})});
-      if (!mail.ok) throw new Error('mail');
-    } catch {
-      await db.prepare("DELETE FROM report_settings WHERE key='link' AND value=?").bind(now+'|'+hashed).run();
-      return response({message:'The sign-in email could not be sent. Please try again.'},502);
-    }
+const lifetime = 15 * 60 * 1000;
+const challengeCookie = '__Host-ds_challenge';
+const getChallenge = request =>
+  (request.headers.get('Cookie') || '').match(/(?:^|;\s*)__Host-ds_challenge=([0-9a-f]{64})(?:;|$)/)?.[1];
+const codeCookie = value =>
+  challengeCookie+'='+value+'; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=1800';
+
+async function emailCode(env, db, request) {
+  if (!env.RESEND_API_KEY || !env.ENQUIRY_FROM || !env.ENQUIRY_TO)
+    return response({message:'Report sign-in email is not configured.'},503);
+  const now = Date.now();
+  const challenge = getChallenge(request) || token();
+  const browser = await digest(challenge);
+  const random = crypto.getRandomValues(new Uint32Array(1))[0];
+  const code = String(random % 100000000).padStart(8,'0');
+  const hash = await digest(challenge + ':' + code);
+  const [,claim] = await db.batch([
+    db.prepare('DELETE FROM report_codes WHERE issued<?').bind(now-lifetime),
+    db.prepare(`INSERT INTO report_codes(browser,issued,digest,attempts)
+      SELECT ?,?,?,0 WHERE NOT EXISTS (SELECT 1 FROM report_codes WHERE issued>=?)
+      ON CONFLICT(browser) DO UPDATE SET issued=excluded.issued,digest=excluded.digest,attempts=0
+      `).bind(browser,now,hash,now-120000)
+  ]);
+  if (!claim.meta.changes) {
+    const active = await db.prepare('SELECT 1 AS active FROM report_codes WHERE browser=?').bind(browser).first();
+    return active ? response({message:'Use the code most recently emailed to your website enquiry inbox. You can request another after two minutes.'})
+      : response({message:'A code was requested recently. Please try again in two minutes.'},429);
   }
-  return response({message:'Check the website enquiry inbox for your sign-in link. A recently sent link is valid for 15 minutes.'});
+  try {
+    const mail = await fetch('https://api.resend.com/emails',{
+      method:'POST', headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json'},
+      signal:AbortSignal.timeout(8000),
+      body:JSON.stringify({from:env.ENQUIRY_FROM,to:[env.ENQUIRY_TO],subject:'Your portfolio report sign-in code',
+        text:'Your sign-in code is '+code+'.\n\nReturn to the browser where you requested it and enter these eight digits. The code expires in 15 minutes.'})
+    });
+    if (!mail.ok) throw new Error('mail');
+  } catch {
+    await db.prepare('DELETE FROM report_codes WHERE browser=? AND digest=?').bind(browser,hash).run();
+    return response({message:'The code could not be emailed. Please try again.'},502);
+  }
+  return response({message:'Check your website enquiry inbox for the eight-digit code. Enter it here within 15 minutes.'},200,{'Set-Cookie':codeCookie(challenge)});
+}
+
+async function verifyCode(db, request, code) {
+  const challenge = getChallenge(request);
+  if (!challenge || typeof code!=='string' || !/^\d{8}$/.test(code))
+    return response({message:'Enter the eight-digit code in the browser where you requested it.'},400);
+  const browser = await digest(challenge);
+  const hash = await digest(challenge + ':' + code);
+  const now = Date.now();
+  const [claim] = await db.batch([
+    db.prepare('DELETE FROM report_codes WHERE browser=? AND digest=? AND issued>? AND attempts<5')
+      .bind(browser,hash,now-lifetime),
+    db.prepare('UPDATE report_codes SET attempts=attempts+1 WHERE browser=? AND attempts<5').bind(browser)
+  ]);
+  if (!claim.meta.changes)
+    return response({message:'That code was incorrect, expired or already used. Check the latest email or request a new code.'},401);
+  return createSession(db);
+}
+
+async function createSession(db) {
+  const session=token();
+  await db.batch([db.prepare('DELETE FROM report_sessions WHERE expires<=?').bind(Date.now()),
+    db.prepare('INSERT INTO report_sessions VALUES(?,?)').bind(await digest(session),Date.now()+2592000000)]);
+  return response({ok:true},200,{'Set-Cookie':sessionCookie(session,2592000)});
 }
 export async function onRequest({request,env}) {
   if (!env.PORTFOLIO_STATS) return response({message:'Reporting is awaiting its database connection.'},503);
@@ -34,15 +82,13 @@ export async function onRequest({request,env}) {
     if (request.method==='POST') {
       if (!sameOrigin(request)) return response({},403);
       let data; try {data=await readJSON(request,4096);} catch {return response({},400);}
-      if (data?.action==='email') return emailLink(env,db,request);
+      if (data?.action==='email') return await emailCode(env,db,request);
+      if (data?.action==='verify-code') return await verifyCode(db,request,data.code);
       if (data?.action==='login' && /^[a-f0-9]{64}$/.test(data.key)) {
         const claim=await db.prepare("DELETE FROM report_settings WHERE key='link' AND substr(value,15)=? AND CAST(substr(value,1,13) AS INTEGER)>? RETURNING key")
           .bind(await digest(data.key),Date.now()-900000).first();
         if (!claim) return response({message:'This sign-in link has expired or has already been used.'},401);
-        const session=token();
-        await db.batch([db.prepare('DELETE FROM report_sessions WHERE expires<=?').bind(Date.now()),
-          db.prepare('INSERT INTO report_sessions VALUES(?,?)').bind(await digest(session),Date.now()+2592000000)]);
-        return response({ok:true},200,{'Set-Cookie':sessionCookie(session,2592000)});
+        return await createSession(db);
       }
       if (!await owner(db,request)) return response({},401);
       if (data.action==='start') {

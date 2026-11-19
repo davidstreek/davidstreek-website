@@ -2,7 +2,7 @@
 <body><main><header><a href="/">David Streek</a><p>Private report</p></header>
 <h1>Portfolio attention</h1><p id="device"></p><p id="status" role="status">Connecting to the report…</p>
 <p id="fallback" hidden><a href="/report">Open the simple sign-in page</a></p><noscript><p><a href="/report">Open the simple sign-in page</a></p></noscript>
-<button id="login" hidden>Email my sign-in link</button><button id="activate" hidden>Start measuring visits</button>
+<button id="login" hidden>Sign in with an email code</button><button id="activate" hidden>Start measuring visits</button>
 <div id="report" hidden><form id="period"><label>From <input type="date" id="from" required></label><label>To <input type="date" id="to" required></label><button>Show period</button></form>
 <section><h2>Overview</h2><div id="summary" class="summary"></div><div id="trends" class="trends"></div></section>
 <section><h2>Enquiries and sources</h2><div id="contact" class="trends"></div></section>
@@ -15,4 +15,4 @@
   };
   setTimeout(function () { if (status.textContent === 'Connecting to the report…') window.reportLoadIssue(); }, 8000);
 })();
-</script><script type="module">import('/insights/report.js?v=mobile-entry').catch(window.reportLoadIssue);</script></body></html>
+</script><script type="module">import('/insights/report.js?v=email-code').catch(window.reportLoadIssue);</script></body></html>

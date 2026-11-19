@@ -108,9 +108,14 @@ async function load(){
   }catch{id('status').textContent='Could not load the report. Refresh to try again.';}
 }
 id('period').onsubmit=e=>{e.preventDefault();load();};
-id('login').onclick=async()=>{id('login').disabled=true;try{const r=await action('email');id('status').textContent=(await r.json()).message;}catch{id('status').textContent='Could not request a sign-in link.';}finally{id('login').disabled=false;}};
+id('login').onclick=()=>location.assign('/report');
 id('activate').onclick=async()=>{try{const r=await action('start');if(!r.ok)throw Error();await load();}catch{id('status').textContent='Collection could not start. Check this browser’s exclusion and try again.';}};
 id('logout').onclick=async()=>{await action('logout');location.replace(location.pathname);};
 const key=new URLSearchParams(location.hash.slice(1)).get('key');
-if(key){history.replaceState(null,'',location.pathname);try{const r=await action('login',{key});if(!r.ok)throw Error();await load();}catch{id('status').textContent='This link could not sign you in. Request a fresh email.';id('login').hidden=false;}}
+if(key){
+  history.replaceState(null,'',location.pathname);
+  id('status').textContent='To use this earlier sign-in link, continue in the browser where you want to view the report.';
+  id('login').textContent='Continue to my report';id('login').hidden=false;
+  id('login').onclick=async()=>{id('login').disabled=true;try{const r=await action('login',{key});if(!r.ok)throw Error();await load();}catch{location.assign('/report');}finally{id('login').disabled=false;id('login').textContent='Sign in with an email code';id('login').onclick=()=>location.assign('/report');}};
+}
 else await load();
