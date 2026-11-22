@@ -10,7 +10,7 @@ id('to').value=today;id('to').max=today;id('from').max=today;
 id('from').value=datestr(new Date(Date.parse(today)-27*86400000));
 const action=(name,extra={})=>fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:name,...extra})});
 const el=(tag,txt,cl)=>{const node=document.createElement(tag);if(txt!==undefined)node.textContent=txt;if(cl)node.className=cl;return node;};
-const ratio=(a,b)=>b?Math.round(100*a/b)+'%':'—';
+const ratio=(a,b)=>b?Math.round(100*a/b)+'%':' - ';
 const roman=['i','ii','iii','iv','v','vi','vii','viii','ix','x'];
 const shortDate=day=>new Intl.DateTimeFormat('en-GB',{month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(day));
 function chart(label,series,maximum,days) {
@@ -24,7 +24,7 @@ function chart(label,series,maximum,days) {
   line('2,5 238,5','#d9dbd3',1);line('2,49 238,49','#b9bcb3',1);
   line(series.map((v,i)=>x(i)+','+y(v)).join(' '),'#364b40',2);
   if(series.length===1){const dot=document.createElementNS(ns,'circle');dot.setAttribute('cx','120');dot.setAttribute('cy',y(series[0]));dot.setAttribute('r','2');svg.append(dot);}
-  const axis=el('div',undefined,'dates');axis.append(el('span',shortDate(days[0])),el('span','0–'+max),el('span',shortDate(days.at(-1))));
+  const axis=el('div',undefined,'dates');axis.append(el('span',shortDate(days[0])),el('span','0 - '+max),el('span',shortDate(days.at(-1))));
   fig.append(svg,axis);return fig;
 }
 function render({catalog,since,rows,from,to}){
@@ -61,7 +61,7 @@ function render({catalog,since,rows,from,to}){
   for(const [index,p] of catalog.entries()){
     const section=el('section'),reaches=count('reach',p.id),interest=count('engaged',p.id);
     section.append(el('small','Project '+(index+1)),el('h2',p.name));
-    section.append(el('p',reaches+' project views · '+interest+' explored ('+ratio(interest,reaches)+') · '+count('read',p.id)+' “Read more” openings · '+(reaches?Math.round(count('projectSeconds',p.id)/reaches)+'s':'—')+' mean visible time'));
+    section.append(el('p',reaches+' project views · '+interest+' explored ('+ratio(interest,reaches)+') · '+count('read',p.id)+' “Read more” openings · '+(reaches?Math.round(count('projectSeconds',p.id)/reaches)+'s':' - ')+' mean visible time'));
     const plot=chart('Project views per day',series('reach',[p.id]),pMax,days);plot.className='project-line';section.append(plot);
     const photos=el('div',undefined,'photos');
     for(const [i,photo] of p.photos.entries()){
@@ -71,7 +71,7 @@ function render({catalog,since,rows,from,to}){
       const rate=el('progress');rate.max=100;rate.value=shown?100*chosen/shown:0;rate.setAttribute('aria-label','Opening rate '+ratio(chosen,shown));
       card.append(rate);
       const dl=el('dl');
-      for(const [term,value] of [['Appearances',shown],['Chosen to enlarge',count('open',key)],['Opening rate',ratio(chosen,shown)],['Reached by swipe / arrow',count('browse',key)],['Mean full-screen time',views?Math.round(count('seconds',key)/views)+'s':'—']]){
+      for(const [term,value] of [['Appearances',shown],['Chosen to enlarge',count('open',key)],['Opening rate',ratio(chosen,shown)],['Reached by swipe / arrow',count('browse',key)],['Mean full-screen time',views?Math.round(count('seconds',key)/views)+'s':' - ']]){
         const r=el('div');r.append(el('dt',term),el('dd',value));dl.append(r);
       }
       card.append(dl,chart('Openings per day',series('open',[key]),iMax,days));
